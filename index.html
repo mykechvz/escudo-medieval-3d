@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Escudo medieval 3D</title>
+  <script type="module"
+          src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
+  <style>
+    :root {
+      --fondo: #15110d;
+      --panel: #221b14;
+      --borde: #4a3b2a;
+      --texto: #eadcc4;
+      --acento: #c08a3e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: radial-gradient(circle at 50% 30%, #2a2118, var(--fondo));
+      color: var(--texto);
+      font-family: Georgia, "Times New Roman", serif;
+    }
+    header { text-align: center; padding: 20px 16px 4px; }
+    h1 { margin: 0; font-size: clamp(1.5rem, 4vw, 2.2rem); letter-spacing: 2px; }
+    header p { margin: 6px 0 0; opacity: .75; font-size: .95rem; }
+
+    model-viewer {
+      width: 100%;
+      flex: 1;
+      min-height: 55vh;
+      --poster-color: transparent;
+    }
+
+    .controles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      padding: 16px;
+      background: var(--panel);
+      border-top: 1px solid var(--borde);
+    }
+    button {
+      font: inherit;
+      color: var(--texto);
+      background: #2e2418;
+      border: 1px solid var(--borde);
+      border-radius: 8px;
+      padding: 12px 18px;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    button:hover:not(:disabled) { background: #3a2d1d; border-color: var(--acento); }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    button small { display: block; opacity: .7; margin-top: 2px; font-size: .78rem; }
+
+    #estado { text-align: center; padding: 0 16px 14px; font-size: .85rem; opacity: .7;
+              background: var(--panel); margin: 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ESCUDO MEDIEVAL</h1>
+    <p>Arrastra para girarlo · pellizca o usa la rueda para acercar</p>
+  </header>
+
+  <model-viewer id="escudo"
+                src="escudo.glb"
+                alt="Escudo medieval redondo con aro de acero, cruz de bronce y tablero de madera"
+                camera-controls
+                auto-rotate
+                shadow-intensity="1"
+                environment-image="neutral"
+                exposure="1"
+                interaction-prompt="auto">
+  </model-viewer>
+
+  <div class="controles">
+    <button id="btnAcero" disabled>
+      Color del acero
+      <small id="txtAcero">Original</small>
+    </button>
+    <button id="btnNormal" disabled>
+      Normal map del bronce
+      <small id="txtNormal">Activado</small>
+    </button>
+    <button id="btnBronce" disabled>
+      Acabado del bronce
+      <small id="txtBronce">Envejecido</small>
+    </button>
+  </div>
+  <p id="estado">Cargando modelo…</p>
+
+  <script>
+    const mv = document.getElementById('escudo');
+    const estado = document.getElementById('estado');
+
+    const btnAcero = document.getElementById('btnAcero');
+    const btnNormal = document.getElementById('btnNormal');
+    const btnBronce = document.getElementById('btnBronce');
+
+    // Colores para multiplicar sobre la textura del acero (RGBA 0-1)
+    const coloresAcero = [
+      { nombre: 'Original',     rgba: [1.0, 1.0, 1.0, 1] },
+      { nombre: 'Azul acero',   rgba: [0.55, 0.70, 1.0, 1] },
+      { nombre: 'Oscuro',       rgba: [0.35, 0.35, 0.40, 1] },
+      { nombre: 'Dorado',       rgba: [1.0, 0.82, 0.45, 1] },
+    ];
+
+    let acero, bronce, texNormalBronce;
+    let idxAcero = 0;
+    let normalActivo = true;
+    let bronceEnvejecido = true;
+
+    mv.addEventListener('load', () => {
+      acero  = mv.model.getMaterialByName('Acero');
+      bronce = mv.model.getMaterialByName('Bronce');
+
+      if (!acero || !bronce) {
+        const nombres = mv.model.materials.map(m => m.name).join(', ');
+        estado.textContent = 'No encontré los materiales Acero/Bronce. Materiales del modelo: ' + nombres;
+        return;
+      }
+
+      // Guardamos la textura normal original para poder volver a ponerla
+      texNormalBronce = bronce.normalTexture ? bronce.normalTexture.texture : null;
+
+      btnAcero.disabled = false;
+      btnBronce.disabled = false;
+      btnNormal.disabled = !texNormalBronce;
+      estado.textContent = 'Modelo cargado. Prueba los tres botones.';
+    });
+
+    mv.addEventListener('error', () => {
+      estado.textContent = 'No se pudo cargar escudo.glb. Revisa que esté en la misma carpeta que index.html.';
+    });
+
+    // 1) Color del acero
+    btnAcero.addEventListener('click', () => {
+      idxAcero = (idxAcero + 1) % coloresAcero.length;
+      const c = coloresAcero[idxAcero];
+      acero.pbrMetallicRoughness.setBaseColorFactor(c.rgba);
+      document.getElementById('txtAcero').textContent = c.nombre;
+    });
+
+    // 2) Activar / desactivar el normal map del bronce
+    btnNormal.addEventListener('click', () => {
+      normalActivo = !normalActivo;
+      bronce.normalTexture.setTexture(normalActivo ? texNormalBronce : null);
+      document.getElementById('txtNormal').textContent = normalActivo ? 'Activado' : 'Desactivado';
+    });
+
+    // 3) Bronce envejecido <-> pulido (cambia la rugosidad)
+    btnBronce.addEventListener('click', () => {
+      bronceEnvejecido = !bronceEnvejecido;
+      bronce.pbrMetallicRoughness.setRoughnessFactor(bronceEnvejecido ? 1.0 : 0.3);
+      document.getElementById('txtBronce').textContent = bronceEnvejecido ? 'Envejecido' : 'Pulido';
+    });
+  </script>
+</body>
+</html>
